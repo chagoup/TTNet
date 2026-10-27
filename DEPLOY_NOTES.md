@@ -7,9 +7,10 @@
 代码 Git 仓库与本地独立资产包需要分别保存：
 
 - Git：源码、脚本、说明和依赖清单。`.gitignore` 已排除 `checkpoints/`、`dataset/`、视频、权重及生成结果；仅 clone 无法恢复模型和数据。
-- `baseline-assets.zip`：由主代理另行提供，预定包含 `checkpoints/` 下全部 `.pth` 与 `dataset/test/videos/test_2.mp4`。
-- `assets-manifest.json`：与该资产包配套的文件路径、大小及哈希清单，实际内容以交付清单为准。此说明不代表资产包已生成或已校验。
-- 该包**不含完整训练数据**、全部测试视频、抽帧、球/事件标注和分割掩码，也不备份原有结果视频。
+- `baseline-assets.zip`：位于相邻目录 `TTNet-backup/`，包含 `checkpoints/` 下三个 `.pth` 与 `dataset/test/videos/test_2.mp4`，实测 503 MB。
+- `assets-manifest.json`：与该包同目录，记录文件路径、字节数与 SHA-256；压缩包已通过 `zipfile.testzip()` 与逐项大小核对。
+- 该包**不含完整训练数据**、其余 6 个测试视频、抽帧、球/事件标注和分割掩码，也不备份原有结果视频。
+- 该资产包为本地文件，**未上传至 Git 仓库**（体积过大且属二进制大文件），需手动拷贝或另行托管。
 
 本次部署修改只做受管 Python 3.13 的语法/CLI 检查，不执行原 conda，不安装训练依赖。Python 3.11 + CUDA 的模型前向、视频解码及真实训练须在目标 PC 验收；不能将静态检查视为运行成功。
 
@@ -31,7 +32,7 @@
 
 ## 3. 获取代码与创建环境
 
-如果远程尚未推送基线，需要等代码备份完成后再 clone。本次文件修改不会执行 `git add`、`commit`、`push`，也不修改远程配置。
+代码已推送至远程私有仓库 `main` 分支（提交 `241a5b7`，74 个文件）。另一台电脑直接克隆：
 
 ```bash
 git clone https://github.com/chagoup/TTNet.git
@@ -77,6 +78,22 @@ python -m zipfile -e baseline-assets.zip .
 ```
 
 按交付的 `assets-manifest.json` 逐项核对文件大小、SHA-256 与文件数；当前自检入口只验证选定演示权重和视频非空，**不代替清单校验**。已存在同名资产时先备份，解压会覆盖同名文件。不要将资产包、原数据或 `.venv` 强行加入 Git。
+
+校验示例：
+
+```bash
+python - <<'EOF'
+import hashlib, json, os
+m = json.load(open('assets-manifest.json'))
+for f in m['files']:
+    h = hashlib.sha256()
+    with open(f['path'], 'rb') as fh:
+        for c in iter(lambda: fh.read(1 << 22), b''):
+            h.update(c)
+    ok = h.hexdigest() == f['sha256'] and os.path.getsize(f['path']) == f['size']
+    print(('OK  ' if ok else 'FAIL'), f['path'])
+EOF
+```
 
 默认演示必须具备：
 
