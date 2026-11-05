@@ -158,21 +158,49 @@ def get_events_infor(game_list, configs, dataset_type):
 
 
 def train_val_data_separation(configs):
-    """Seperate data to training and validation sets"""
+    """Seperate data to training and validation sets.
+
+    默认按【视频】留出验证集，而不是随机切分事件样本。
+
+    为什么必须按视频：原先用 train_test_split 随机切分，会让同一个视频的相邻帧
+    同时进入训练集和验证集。TTNet 的输入是连续 9 帧窗口，相邻样本几乎相同，
+    验证 loss 会因此虚低，早停和选模型都失去意义（等于在训练集上验证）。
+
+    配置：--val-games 显式指定验证视频；
+         未指定时按 --val-size 从 train_game_list 末尾留出（默认留 1 个视频）。
+    """
     dataset_type = 'training'
-    events_infor, events_labels = get_events_infor(configs.train_game_list, configs, dataset_type)
+
     if configs.no_val:
-        train_events_infor = events_infor
-        train_events_labels = events_labels
-        val_events_infor = None
-        val_events_labels = None
+        events_infor, events_labels = get_events_infor(
+            configs.train_game_list, configs, dataset_type)
+        return events_infor, None, events_labels, None
+
+    train_games = list(configs.train_game_list)
+    val_games = list(getattr(configs, 'val_games', None) or [])
+
+    if val_games:
+        # 显式指定：从训练列表里剔除这些视频
+        train_games = [g for g in train_games if g not in val_games]
     else:
-        train_events_infor, val_events_infor, train_events_labels, val_events_labels = train_test_split(events_infor,
-                                                                                                        events_labels,
-                                                                                                        shuffle=True,
-                                                                                                        test_size=configs.val_size,
-                                                                                                        random_state=configs.seed,
-                                                                                                        stratify=events_labels)
+        # 未显式指定：留出最后 n 个视频作验证集
+        n_val = max(1, int(round(len(train_games) * getattr(configs, 'val_size', 0.2))))
+        # 至少保留 2 个视频用于训练
+        n_val = min(n_val, max(1, len(train_games) - 2))
+        val_games = train_games[-n_val:]
+        train_games = train_games[:-n_val]
+
+    if not train_games:
+        raise ValueError('留出验证集后训练集为空，请减少 --val-size 或调整 --val-games')
+
+    print('[划分] 训练视频: {}'.format(train_games))
+    print('[划分] 验证视频: {}'.format(val_games))
+
+    train_events_infor, train_events_labels = get_events_infor(
+        train_games, configs, dataset_type)
+    val_events_infor, val_events_labels = get_events_infor(
+        val_games, configs, dataset_type)
+
     return train_events_infor, val_events_infor, train_events_labels, val_events_labels
 
 

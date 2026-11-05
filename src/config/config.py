@@ -59,6 +59,10 @@ def parse_configs():
                         help='If true, dont evaluate the model on the test set')
     parser.add_argument('--val-size', type=float, default=0.2,
                         help='The size of validation set')
+    parser.add_argument('--val-games', type=str, nargs='*', default=None,
+                        help='显式指定验证集视频（如 game_5）。按视频留出，避免同一视频的'
+                             '相邻帧同时进入训练和验证造成泄漏。不指定时从 train_game_list '
+                             '末尾按 --val-size 留出')
     parser.add_argument('--smooth-labelling', action='store_true',
                         help='If true, smoothly make the labels of event spotting')
     parser.add_argument('--num_samples', type=int, default=None,
